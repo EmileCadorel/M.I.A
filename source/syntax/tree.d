@@ -1,7 +1,7 @@
 /**
  * Tiu modulo enhavas la difinojn de la arbo de sintakso
  */
-module tree;
+module syntax.tree;
 
 import std.algorithm;
 import std.outbuffer;
@@ -75,6 +75,7 @@ abstract class TreeNode {
 class Noun : TreeNode {
 
     private TreeNode[] _attributes;
+    private TreeNode _posedo;
     bool _isLa = false;
     bool _plur = false;
     
@@ -93,6 +94,10 @@ class Noun : TreeNode {
 
     void isPlur (bool pl) {
 	this._plur = pl;
+    }
+
+    void setPosedo (TreeNode node) {
+	this._posedo = node;
     }
     
     override string prettyString () {
@@ -120,6 +125,12 @@ class Noun : TreeNode {
 	
 	if (_plur) buf.writefln (" (pl.)");
 	else buf.writefln ("");
+
+	if (this._posedo !is null) {
+	    bool isLast = _attributes.length == 0;
+	    buf.writefln ("%s", this.treePrintContent ("de ", i+1, isLast, parentLast~[last]));
+	    buf.writef ("%s", this._posedo.treePrint (i+2, true, parentLast~[last]~[isLast]));
+	}
 	
 	int z = 0;
 	foreach (j ; this._attributes) {
@@ -264,7 +275,7 @@ class Verb : TreeNode {
 	
 	OutBuffer buf = new OutBuffer ();
 	buf.writefln ("%s (%s) (%s)", super.treePrint (i, last, parentLast), this._tense, this._trans? "tr." : "ntr.");
-	buf.writefln ("%s (pref.)", super.treePrintContent (this._prefs.to!string, i+1, this._suffs.length == 0, parentLast~[last]));
+	buf.writefln ("%s (pref.)", super.treePrintContent (this._prefs.to!string, i+1, false, parentLast~[last]));
 	buf.writefln ("%s (suff.)", super.treePrintContent (this._suffs.to!string, i+1, this._particles.length == 0, parentLast~[last]));
 	int z = 0;
 	foreach (j ; this._particles) {
@@ -340,16 +351,16 @@ class Sentence : TreeNode {
     private TreeNode _subjekto;
     private TreeNode _verbo;
     private TreeNode _predikativo;
-    private TreeNode _dativo;
+    private TreeNode [] _dativoj;
     private TreeNode _intero;
     private bool _cu;
 
-    this (TreeNode sub, TreeNode verb, TreeNode pred, TreeNode dat, TreeNode inter = null, bool cu = false) {
+    this (TreeNode sub, TreeNode verb, TreeNode pred, TreeNode [] dat, TreeNode inter = null, bool cu = false) {
 	super ("Frazo");
 	this._subjekto = sub;
 	this._verbo = verb;
 	this._predikativo = pred;
-	this._dativo = dat;
+	this._dativoj = dat;
 	this._intero = inter;
 	this._cu = cu;
     }
@@ -361,26 +372,28 @@ class Sentence : TreeNode {
 	else buf.writefln ("%s", super.treePrint (i, last, parentLast));
 	
 	if (_subjekto!is null) {
-	    bool isLast = _verbo is null && _predikativo is null && _dativo is null;
+	    bool isLast = _verbo is null && _predikativo is null && _dativoj.length == 0;
 	    buf.writefln ("%s", this.treePrintContent ("Subjekto : ", i+1, isLast, parentLast~[last]));
 	    buf.writef ("%s", this._subjekto.treePrint (i+2, true, parentLast~[last]~[isLast]));
 	}
 
 	if (_verbo!is null) {
-	    bool isLast = _predikativo is null && _dativo is null;
+	    bool isLast = _predikativo is null && _dativoj.length == 0;
 	    buf.writefln ("%s", this.treePrintContent ("Verbo : ", i+1, isLast, parentLast~[last]));
 	    buf.writef ("%s", this._verbo.treePrint (i+2, true, parentLast~[last]~[isLast]));
 	}
 
 	if (_predikativo !is null) {
-	    bool isLast = _dativo is null;
+	    bool isLast = _dativoj.length == 0;
 	    buf.writefln ("%s", this.treePrintContent ("Predikativo : ", i+1, isLast, parentLast~[last]));
 	    buf.writef ("%s", this._predikativo.treePrint (i+2, true, parentLast~[last]~[isLast]));
 	}
 
-	if (_dativo!is null) {
-	    buf.writefln ("%s", this.treePrintContent ("dativo : ", i+1, true, parentLast~[last]));
-	    buf.writef ("%s", this._dativo.treePrint (i+2, true, parentLast~[last]~[true]));
+	int z = 0;
+	foreach (d ; _dativoj) {
+	    z += 1;
+	    buf.writefln ("%s", this.treePrintContent ("Dativo : ", i+1, _dativoj.length == z, parentLast~[last]));
+	    buf.writef ("%s", d.treePrint (i+2, true, parentLast~[last]~[_dativoj.length == z]));
 	}
 	return buf.toString ();
     }

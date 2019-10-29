@@ -1,9 +1,8 @@
 /**
  * Tiu modulo kreas la arbo de sintakso el frazo
  */
-module grammar;
-import tree;
-import syntax;
+module syntax.grammar;
+import syntax._;
 import std.algorithm;
 import std.array;
 import std.stdio;
@@ -14,6 +13,7 @@ static string [] nt_verbs = [];
 static string []  t_verbs = [];
 static string []  i_words = [];
 static string []  e_words = [];
+static string [] ne_advs  = [];
 static string [] ant_rads = [];
 
 static this () {
@@ -40,6 +40,11 @@ static this () {
     f = File ("resources/eo/root-ant-at.txt", "r");
     foreach (line ; f.byLine) {
 	if (line[0] != '#') ant_rads = ant_rads ~ [line.to!string];
+    }
+
+    f = File ("resources/eo/ne-advs.txt", "r");
+    foreach (line ; f.byLine) {
+	if (line[0] != '#') ne_advs = ne_advs ~ [line.to!string];
     }
     
 }
@@ -88,20 +93,19 @@ TreeNode constructTreeDemandoCxu (string [] sent) {
 
 Tuple!(TreeNode, "aserto", string[], "rest") constructTreeAserto (string [] sent) {
     TreeNode predicative;
-    TreeNode dativo;
+    TreeNode [] dativoj;
     TreeNode subjekto;
     TreeNode verbo;
     
     bool succ = true;
-    while (succ && sent.length != 0 && (predicative is null || dativo is null || subjekto is null || verbo is null)) {
+    while (succ && sent.length != 0) {
 	succ = false;
-	if (dativo is null) {
-	    auto dat = isDativo (sent);
-	    if (dat.succ) {
-		succ = true;
-		sent = dat.rest;
-		dativo = dat.dativ;
-	    }
+	auto dat = isDativo (sent);
+	if (dat.succ) {
+	    succ = true;
+	    sent = dat.rest;
+	    dativoj ~= [dat.dativ];
+	    continue;
 	}
 
 	if (predicative is null) {
@@ -111,13 +115,21 @@ Tuple!(TreeNode, "aserto", string[], "rest") constructTreeAserto (string [] sent
 		    succ = true;
 		    sent = result.rest;
 		    predicative = result.pred;
+		    continue;
 		}
-	    } else {
+	    } else if (verbo !is null) {
 		auto result = isPredicativeNTrans (sent);
 		if (result.succ) {
 		    succ = true;
 		    sent = result.rest;
-		    predicative = result.pred;
+		    if ((cast (Verb) result.pred) !is null) {
+			auto v = result.pred;
+			(cast (Verb) v).addAttributes (verbo);
+			verbo = v;
+		    } else {
+			predicative = result.pred;
+		    }
+		    continue;
 		}
 	    }
 	}
@@ -128,6 +140,7 @@ Tuple!(TreeNode, "aserto", string[], "rest") constructTreeAserto (string [] sent
 		succ = true;
 		sent = sub.rest;
 		subjekto = sub.subjekto;
+		continue;
 	    }
 	}
 
@@ -137,12 +150,24 @@ Tuple!(TreeNode, "aserto", string[], "rest") constructTreeAserto (string [] sent
 		succ = true;
 		sent = result.rest;
 		verbo = result.verb;
+		continue;
 	    }
 	}
+
+	if (verbo !is null) {
+	    auto result = visitCompleteAdverbo (sent);
+	    if (result.succ) {
+		succ = true;
+		sent = result.rest;
+		(cast (Verb) verbo).addAttributes (result.adv);
+		continue;
+	    }
+	}
+	
     }
     
     
-    return Tuple!(TreeNode, "aserto", string[], "rest") (new Sentence (subjekto, verbo, predicative, dativo), sent);
+    return Tuple!(TreeNode, "aserto", string[], "rest") (new Sentence (subjekto, verbo, predicative, dativoj), sent);
 }
 
 Tuple! (TreeNode, "pred", string[], "rest", bool, "succ") isPredicative (string [] words) {
@@ -163,11 +188,6 @@ Tuple! (TreeNode, "pred", string[], "rest", bool, "succ") isPredicativeNTrans (s
     auto adj = visitCompleteAdjektivo (words, false);
     if (adj.succ) {
 	return Tuple! (TreeNode, "pred", string[], "rest", bool, "succ") (adj.adj, adj.rest, true);
-    }
-
-    auto adv = visitCompleteAdverbo (words);
-    if (adv.succ) {
-	return Tuple! (TreeNode, "pred", string[], "rest", bool, "succ") (adv.adv, adv.rest, true);
     }
     
     return Tuple! (TreeNode, "pred", string[], "rest", bool, "succ") (null, words, false);
@@ -192,7 +212,7 @@ Tuple! (TreeNode, "verb", string[], "rest", bool, "succ") isVerb (string [] word
 
 Tuple!(TreeNode, "dativ", string[], "rest", bool, "succ") isDativo (string [] words) {
     static const string [] __movo__ = ["al", "el", "post", "preter", "tra", "trans"];
-    static const string [] __loko__ = ["en", "sub", "sur", "super", "antaŭ", "malantaŭ", "inter", "ĉirkaŭ", "apud", "kontraŭ", "ekster", "ĉe"];
+    static const string [] __loko__ = ["en", "sub", "sur", "super", "antaŭ", "malantaŭ", "inter", "ĉirkaŭ", "apud", "kontraŭ", "ekster", "ĉe", "preter"];
     static const string [] __tempo__ = ["antaŭ", "antaŭ ol", "dum", "ĝis", "post"];
     static const string [] __diversa__ = ["anstataŭ", "de", "je", "krom", "kun", "laŭ", "per", "po", "por", "pri", "pro", "sen", "sed", "do"];
     
@@ -202,8 +222,10 @@ Tuple!(TreeNode, "dativ", string[], "rest", bool, "succ") isDativo (string [] wo
 	    auto movo = new Preposition (words [0], mov.nomo);
 	    movo.setType ("mov");
 	    return Tuple!(TreeNode, "dativ", string[], "rest", bool, "succ") (movo, mov.rest, true);
-	} else return Tuple!(TreeNode, "dativ", string[], "rest", bool, "succ") (null, words, false);
-    } else if (canFind (__loko__, words [0])) {
+	} 
+    }
+    
+    if (canFind (__loko__, words [0])) {
 	auto loc = visitCompleteNomo (words [1..$], false);
 	if (loc.succ) {
 	    auto movo = new Preposition (words [0], loc.nomo);
@@ -215,8 +237,10 @@ Tuple!(TreeNode, "dativ", string[], "rest", bool, "succ") isDativo (string [] wo
 	    auto movo = new Preposition (words [0], mov.nomo);
 	    movo.setType ("mov");
 	    return Tuple!(TreeNode, "dativ", string[], "rest", bool, "succ") (movo, mov.rest, true);
-	} else return Tuple!(TreeNode, "dativ", string[], "rest", bool, "succ") (null, words, false);	
-    } else if (canFind (__tempo__, words [0])) {
+	} 
+    }
+    
+    if (canFind (__tempo__, words [0])) {
 	auto loc = visitCompleteNomo (words [1..$], false);
 	if (loc.succ) {
 	    auto movo = new Preposition (words [0], loc.nomo);
@@ -228,24 +252,27 @@ Tuple!(TreeNode, "dativ", string[], "rest", bool, "succ") isDativo (string [] wo
 	    auto movo = new Preposition (words [0], mov.nomo);
 	    movo.setType ("mov temp");
 	    return Tuple!(TreeNode, "dativ", string[], "rest", bool, "succ") (movo, mov.rest, true);
-	} else return Tuple!(TreeNode, "dativ", string[], "rest", bool, "succ") (null, words, false);
-    } else if (canFind (__diversa__, words [0])) {
+	} 
+    }
+    
+    if (canFind (__diversa__, words [0])) {
 	auto mov = visitCompleteNomo (words[1..$], false);
 	if (mov.succ) {
 	    auto movo = new Preposition (words [0], mov.nomo);
 	    movo.setType ("div");
 	    return Tuple!(TreeNode, "dativ", string[], "rest", bool, "succ") (movo, mov.rest, true);
-	} else return Tuple!(TreeNode, "dativ", string[], "rest", bool, "succ") (null, words, false);
-    } else 
-	return Tuple!(TreeNode, "dativ", string[], "rest", bool, "succ") (null, words, false);
+	} 
+    }
+    
+    return Tuple!(TreeNode, "dativ", string[], "rest", bool, "succ") (null, words, false);
 }
 
 Tuple!(TreeNode, "adv", string[], "rest", bool, "succ") visitCompleteAdverbo (string [] words) {
-    if (words.length != 0 && words [0][$-1] == 'e' && !canFind (i_words, words [0])) {
+    if (words.length != 0 && isAdverbo (words [0]) && !canFind (i_words, words [0])) {
 	auto adv = new Adverb (words [0], []);
 	words = words [1..$];
 	while (true) {
-	    if (words.length > 0 && words [0][$-1] == 'e' && !canFind (i_words, words [0])) {
+	    if (words.length > 0 && isAdverbo (words [0]) && !canFind (i_words, words [0])) {
 		auto a = new Adverb (words [0], []);
 		a.addAttributes (adv);
 		adv = a;
@@ -268,7 +295,7 @@ Tuple!(TreeNode, "adj", string[], "rest", bool, "succ") visitCompleteAdjektivo (
 	words = adv_s.rest;
     }
         
-    if (words.length > 0 && isAdjektivo (words [0][0 .. $ - z])) {
+    if (words.length > 0 && isAdjektivo (words [0][0 .. $ - z]) && (!predicative || words [0][$-z] == 'n')) {
 	auto adj = visitAdjektivo (words[0][0..$-z]);
 	if (adv !is null)
 	    (cast (Adjective) adj).addAttributes (adv);	
@@ -280,14 +307,13 @@ Tuple!(TreeNode, "adj", string[], "rest", bool, "succ") visitCompleteAdjektivo (
 
 Tuple!(TreeNode, "nomo", string[], "rest", bool, "succ") visitCompleteNomo (string [] words, bool predicative = false) {
     int z = 0;
-    bool isLa = false;
-    
+    bool isLa = false;   
     if (predicative) z = 1;
 
-    if (words [0] == "la") {
+    if (words.length > 0 && words [0] == "la") {
 	isLa = true;
 	words = words [1..$];
-    } else if (isPronoun (words [0][0..$-z])) {
+    } else if (words.length > 0 && isPronoun (words [0][0..$-z])) {
 	return Tuple!(TreeNode, "nomo", string[], "rest", bool, "succ") (visitPronoun (words[0][0..$-z]), words[1..$], true);
     }
     
@@ -304,7 +330,7 @@ Tuple!(TreeNode, "nomo", string[], "rest", bool, "succ") visitCompleteNomo (stri
 	if (words.length > 0 && words [0] == "kaj") words = words [1..$];
     }
     
-    if (words.length > 0 && isNomo (words [0][0 .. $ - z])) {
+    if (words.length > 0 && isNomo (words [0][0 .. $ - z]) && (!predicative || words [0][$-z] == 'n')) {
 	nomo = visitNomo (words[0][0..$-z]);
 	words = words [1..$];
     } else return Tuple!(TreeNode, "nomo", string[], "rest", bool, "succ") (null, words, false);
@@ -319,10 +345,22 @@ Tuple!(TreeNode, "nomo", string[], "rest", bool, "succ") visitCompleteNomo (stri
 	if (words [0] == "kaj") words = words [1..$];
 	else break;
     }
-    
+
+    if (words.length > 0 && words [0] == "de") {
+	auto posedo = visitCompleteNomo (words[1..$], false);
+	if (posedo.succ) {
+	    words = posedo.rest;
+	    (cast (Noun) nomo).setPosedo (posedo.nomo);
+	}
+    }
+
+    // Tie ĉi, oni povas havi specialan dativon kiel "al kiu"
+    // Aŭ specialaj prepozicioj komencantaj per iu 'ki' vorto
+    // Povas esti 'kaj' aŭ 'aŭ' alie
+
     foreach (a ; adj)
 	(cast (Noun) nomo).addAttributes (a);
-
+    
     (cast (Noun) nomo).setIsLa (isLa);
     
     return Tuple!(TreeNode, "nomo", string[], "rest", bool, "succ") (nomo, words, true);
@@ -337,7 +375,7 @@ Tuple! (TreeNode, "verb", string[], "rest", bool, "succ") visitCompleteVerb (str
 	words = adv_s.rest;
     }
     
-    if (isVerb (words [0])) {
+    if (words.length > 0 && isVerb (words [0])) {
 	auto verb = visitVerb (words [0]);
 	words = words [1..$];
 	
@@ -361,6 +399,7 @@ Tuple! (TreeNode, "verb", string[], "rest", bool, "succ") visitCompleteVerb (str
 
 bool isVerb (string word, bool inf = false) {
     import std.utf;
+    if (word.length <= 2) return false;
     if (canFind (i_words, word)) return false;
     if (inf) {
 	if (espIsUpper (word)) return false;
@@ -378,14 +417,16 @@ bool isVerb (string word, bool inf = false) {
 
 TreeNode visitVerb (string word, bool inf = false) {
     if (isVerb (word, inf)) {
-	auto rad = rad (word);
-	auto tense = tense (word);
+	auto rad = radVerb (word);
+	auto tense = tenseVerb (word);
 	auto multRadTra = findInTrans (rad);
 	auto multRadNTra = findInNotTrans (rad);
-	if (multRadNTra.succ) {
+	if (multRadNTra.succ) {	    
 	    return new Verb (multRadNTra.rad, multRadNTra.pref, multRadNTra.suff, tense, [], false);
-	} else if (multRadTra.succ) {
+	} else if (multRadTra.succ  && find (tense, "pass") == []) {
 	    return new Verb (multRadTra.rad, multRadTra.pref, multRadTra.suff, tense, [], true);
+	} else if (multRadTra.succ) {
+	    return new Verb (multRadTra.rad, multRadTra.pref, multRadTra.suff, tense, [], false);
 	} else { // Se oni ne konas la verbon, oni konsideras ke ĝi estas transitiva
 	    return new Verb (rad, [], [], tense, [], true);
 	}
@@ -393,7 +434,7 @@ TreeNode visitVerb (string word, bool inf = false) {
     return null;
 }
 
-string rad (string word) {
+string radVerb (string word) {
     string rest;
     if (word [$-1] == 'u' || word [$-1] == 'i')
 	rest = word [0..$-1];
@@ -406,14 +447,16 @@ string rad (string word) {
 
     if (rest.length > 3) {
 	auto preCon = rest [$-3..$];
+	auto preCon_ = rest [$-2..$];
 	if (antAtTense (preCon) != "") return rest [0..$-3];
+	if (antAtTense (preCon_) != "") return rest [0..$-2];
 	else return rest;
     }
     
     return rest;
 }
 
-string tense (string word) {
+string tenseVerb (string word) {
     string elem;
     string rest;
     if (word [$-1] == 'u' || word [$-1] == 'i') {
@@ -430,7 +473,9 @@ string tense (string word) {
     
     if (rest.length > 3) {
 	auto preCon = rest [$-3..$];
+	auto preCon_ = rest [$-2..$];
 	auto secTense = antAtTense (preCon);
+	secTense = antAtTense (preCon_) ~ secTense;
 	if (secTense != "") 
 	    return secTense ~ "/" ~ simpleTense (elem);
     }
@@ -469,28 +514,50 @@ bool isAdjektivo (string word) {
     size_t i = 0;
     if (word == "la") return false;
     if (espIsUpper (word)) return false;
-    else if (word [$-1] == 'a') return true;
-    else if (word [$-1] == 'j' && word [$-2] == 'a') return true;
+    else if (word.length > 1 && word [$-1] == 'a') return true;
+    else if (word.length > 2 && word [$-1] == 'j' && word [$-2] == 'a') return true;
     else return false;
 }
 
-TreeNode visitAdjektivo (string word) {
+TreeNode visitAdjektivo (string word) {    
     if (isAdjektivo (word)) {
-	if (word [$-1] == 'a')
-	    return new Adjective (word, []);
-	else {
-	    auto adj = new Adjective (word[0..$-1], []);
-	    adj.isPlur (true);
-	    return adj;
+	bool isPlur = false;
+	auto elem = word [0..$-1];
+	if (word [$-1] != 'a') {
+	    elem = word [0..$-2];
+	    isPlur = true;
+	}
+	
+	auto rad = radVerb (elem ~ "i");
+	auto tense = tenseVerb (elem ~ "i");
+
+	if (tense.find ("/") != []) {
+	    auto multRadTra = findInTrans (rad);
+	    auto multRadNTra = findInNotTrans (rad);
+
+	    if (multRadNTra.succ) {
+		return new Verb (multRadNTra.rad, multRadNTra.pref, multRadNTra.suff, tense, [], false);
+	    } else if (multRadTra.succ  && find (tense, "pass") == []) {
+		return new Verb (multRadTra.rad, multRadTra.pref, multRadTra.suff, tense, [], true);
+	    } else if (multRadTra.succ) {
+		return new Verb (multRadTra.rad, multRadTra.pref, multRadTra.suff, tense, [], false);
+	    } else { // Se oni ne konas la verbon, oni konsideras ke ĝi estas transitiva
+		return new Verb (rad, [], [], tense, [], true);
+	    }
+	} else {		
+	    auto adj = new Adjective (elem ~ "a", []);
+	    adj.isPlur (isPlur);
+	    return adj;	    
 	}
     }
     return null;
 }
 
+
 bool isNomo (string word) {
     if (espIsUpper (word)) return true;
-    else if (word [$-1] == 'o') return true;
-    else if (word [$-1] == 'j' && word [$-2] == 'o') return true;
+    else if (word.length > 1 && word [$-1] == 'o') return true;
+    else if (word.length > 2 && word [$-1] == 'j' && word [$-2] == 'o') return true;
     else return false;
 }
 
@@ -509,7 +576,8 @@ TreeNode visitNomo (string word) {
 
 bool isAdverbo (string word) {
     if (espIsUpper (word)) return false;
-    else if (word [$-1] == 'e') return true;
+    else if (word.length > 1 && word [$-1] == 'e') return true;
+    else if (canFind (ne_advs, word)) return true;    
     else return false;
 }
 
@@ -522,8 +590,8 @@ TreeNode visitAdverbo (string word) {
 
 bool isPronoun (string word) {
     import std.uni;
-    static const string [] pronouns = ["mi", "vi", "li", "ŝi", "oni", "ni", "ili"];
-    if (canFind (pronouns, word.toLower)) return true;
+    static const string [] pronouns = ["mi", "vi", "li", "ŝi", "ĝi", "oni", "ni", "ili"];
+    if (canFind (pronouns, word)) return true;
     return false;
 }
 
@@ -605,7 +673,6 @@ Tuple! (string[], "pref", string [], "suff", string, "rad", bool, "succ") findIn
 	    auto end = res [l.length - 1..$];
 	    auto beg = verb [0..$-(l.length + end.length - 1)];
 
-
 	    auto suffs = isOnlySuff (end);
 	    auto prefs = isOnlyPref (beg);
 	    if (suffs.succ && prefs.succ) {
@@ -639,9 +706,9 @@ Tuple! (string[], "suffs", bool, "succ") isOnlySuff (string end) {
 }
 
 Tuple! (string[], "prefs", bool, "succ") isOnlyPref (string end) {
-    auto suffs = ["mal", "ek", "mis", "fi"];
+    auto suffs = ["mal", "ek", "mis", "fi", "re", "for", "preter"];
     string[] res = [];
-    while (end.length > 2) {
+    while (true) {
 	bool succ = false;
 	foreach (x ; suffs) {
 	    if (end.length >= x.length && end [0..x.length] == x) {
@@ -658,11 +725,13 @@ Tuple! (string[], "prefs", bool, "succ") isOnlyPref (string end) {
 }
 
 bool espIsUpper (string word) {
-    import std.uni, std.utf;
-    size_t i = 0;
-    auto c = word.decode (i);
-    static const dchar[] specialChar = ['ĉ', 'ĝ', 'ĥ', 'ĵ', 'ŝ', 'ŭ'];
+    if (word.length > 0) {
+	import std.uni, std.utf;
+	size_t i = 0;
+	auto c = word.decode (i);
+	static const dchar[] specialChar = ['ĉ', 'ĝ', 'ĥ', 'ĵ', 'ŝ', 'ŭ'];
 	
-    if (canFind (specialChar, c)) return false;
-    return isUpper (c);
+	if (canFind (specialChar, c)) return false;
+	return isUpper (c);
+    } else return false;
 }

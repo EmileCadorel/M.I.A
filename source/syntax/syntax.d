@@ -1,4 +1,4 @@
-module syntax;
+module syntax.syntax;
 import std.algorithm;
 
 static const string [] phrasesEnd = ["?", ".", "!"];
