@@ -91,83 +91,138 @@ TreeNode constructTreeDemandoCxu (string [] sent) {
     return null;
 }
 
-Tuple!(TreeNode, "aserto", string[], "rest") constructTreeAserto (string [] sent) {
-    TreeNode predicative;
-    TreeNode [] dativoj;
-    TreeNode subjekto;
-    TreeNode verbo;
-    
-    bool succ = true;
-    while (succ && sent.length != 0) {
-	succ = false;
-	auto dat = isDativo (sent);
-	if (dat.succ) {
-	    succ = true;
-	    sent = dat.rest;
-	    dativoj ~= [dat.dativ];
+bool getAndSetDativo (ref TreeNode node, ref string [] rest) {
+    auto dat = isDativo (rest);
+    node = dat.dativ;
+    rest = dat.rest;
+    return dat.succ;
+}
+
+
+bool getAndSetPredicative (ref TreeNode node, ref string [] rest) {
+    auto dat = isPredicative (rest);
+    node = dat.pred;
+    rest = dat.rest;
+    return dat.succ;
+}
+
+bool getAndSetPredicativeNTrans (ref TreeNode node, ref string [] rest) {
+    auto dat = isPredicativeNTrans (rest);
+    node = dat.pred;
+    rest = dat.rest;
+    return dat.succ;
+}
+
+bool getAndSetSubject (ref TreeNode node, ref string [] rest) {
+    auto dat = isSubjekto (rest);
+    node = dat.subjekto;
+    rest = dat.rest;
+    return dat.succ;
+}
+
+bool getAndSetVerbo (ref TreeNode node, ref string [] rest) {
+    auto dat = isVerb (rest);    
+    node = dat.verb;
+    rest = dat.rest;
+    return dat.succ;
+}
+
+Tuple!(TreeNode, "aserto", string[], "rest") constructTreeAserto (string [] sent, TreeNode pred = null, TreeNode [] dativoj = [], TreeNode sub = null, TreeNode verbo = null, bool canFinal = true) {    
+    while (sent.length != 0) {
+	TreeNode dat;
+	if (getAndSetDativo (dat, sent)) {
+	    dativoj ~= [dat];
 	    continue;
 	}
 
-	if (predicative is null) {
-	    if (verbo is null || (cast (Verb)verbo).isTransitive ()) {
-		auto result = isPredicative (sent);
-		if (result.succ) {
-		    succ = true;
-		    sent = result.rest;
-		    predicative = result.pred;
-		    continue;
-		}
-	    } else if (verbo !is null) {
-		auto result = isPredicativeNTrans (sent);
-		if (result.succ) {
-		    succ = true;
-		    sent = result.rest;
-		    if ((cast (Verb) result.pred) !is null) {
-			auto v = result.pred;
-			(cast (Verb) v).addAttributes (verbo);
-			verbo = v;
-		    } else {
-			predicative = result.pred;
-		    }
-		    continue;
-		}
+	if (pred is null && (verbo is null || (cast (Verb)verbo).isTransitive ()) && getAndSetPredicative (pred, sent)) {
+	    writeln (pred);
+	    continue;
+	} else if (pred is null && verbo !is null && getAndSetPredicativeNTrans (pred, sent)) {
+	    if (cast (Verb) pred !is null) {
+		(cast (Verb) pred).addAttributes (verbo);
+		pred = null;
 	    }
+	    continue;
 	}
-
-	if (subjekto is null) {
-	    auto sub = isSubjekto (sent);
-	    if (sub.succ) {
-		succ = true;
-		sent = sub.rest;
-		subjekto = sub.subjekto;
-		continue;
-	    }
+	
+	if (sub is null && getAndSetSubject (sub, sent)) {
+	    continue;
 	}
-
-	if (verbo is null) {
-	    auto result = isVerb (sent);
-	    if (result.succ) {
-		succ = true;
-		sent = result.rest;
-		verbo = result.verb;
-		continue;
-	    }
+	if (verbo is null && getAndSetVerbo (verbo, sent)) {
+	    continue;
 	}
-
-	if (verbo !is null) {
+	
+	if (verbo !is null && canFinal) {
 	    auto result = visitCompleteAdverbo (sent);
 	    if (result.succ) {
-		succ = true;
 		sent = result.rest;
 		(cast (Verb) verbo).addAttributes (result.adv);
 		continue;
-	    }
+	    } 
 	}
 	
+	break;		
+    }    
+    
+    return Tuple!(TreeNode, "aserto", string[], "rest") (new Sentence (sub, verbo, pred, dativoj), sent);
+}
+
+Tuple! (TreeNode, "aserto", string[], "rest") constructKiAsertoForNomo (string [] sent) {
+    // kiu kaj kio
+    if (sent.length == 0)
+	return Tuple! (TreeNode, "aserto", string[], "rest") (null, sent);
+    
+    if (isWord (sent[0], ["kiu", "kio", "kia"], true, true)) {
+	bool isPlur = sent [0].length >= 4 && sent [0][3] == 'j';
+	bool isPredicative = sent [0][$-1] == 'n';
+	auto nomo = new Noun (sent [0][0..3], []);
+	nomo.isPlur (isPlur);
+	
+	if (isPredicative) {
+	    auto frazo = constructTreeAserto (sent [1..$], nomo, [], null, null, false);
+	    return Tuple! (TreeNode, "aserto", string[], "rest") (frazo.aserto, frazo.rest);
+	} else {
+	    auto frazo = constructTreeAserto (sent [1..$], null, [], nomo, null, false);
+	    return Tuple! (TreeNode, "aserto", string[], "rest") (frazo.aserto, frazo.rest);
+	}
+
+    } else if (isWord (sent[0], ["kie"], true, false)) {    
+	bool isMovo = sent [0][$-1] == 'n';
+	auto frazo = constructTreeAserto (sent [1..$], null, [], null, null, false);
+	auto nomo = new Preposition ("kie", frazo.aserto);
+	if (isMovo) nomo.setType ("mov");
+	else nomo.setType ("loc");
+	return Tuple! (TreeNode, "aserto", string[], "rest") (nomo, frazo.rest);
+    } else if (isWord (sent[0], ["kiam"], false, false)) {    
+	auto frazo = constructTreeAserto (sent [1..$], null, [], null, null, false);
+	auto nomo = new Preposition ("kiam", frazo.aserto);
+	nomo.setType ("temp");
+	return Tuple! (TreeNode, "aserto", string[], "rest") (nomo, frazo.rest);
     }
-    
-    
-    return Tuple!(TreeNode, "aserto", string[], "rest") (new Sentence (subjekto, verbo, predicative, dativoj), sent);
+
+    return Tuple! (TreeNode, "aserto", string[], "rest") (null, sent);
+}
+
+bool isWord (string word, string[] poss, bool pred, bool plur) {
+    int plus = 0;
+    if (pred) plus ++;
+    if (plur) plus ++;
+    foreach (p ; poss) {
+	if (word.length >= p.length && word.length <= p.length + plus) {
+	    if (word [0..p.length] == p) {
+		if (word.length == p.length) return true;
+		if (word.length == p.length + 1) {
+		    if (pred && word [$-1] == 'n') return true;
+		    if (plur && word [$-1] == 'j') return true;
+		}
+		if (word.length == p.length + 1) {
+		    if (pred && word [$-1] == 'n' && plur && word [$-2] == 'j') return true;
+		}
+	    }
+	}
+    }
+    return false;
 }
 
 Tuple! (TreeNode, "pred", string[], "rest", bool, "succ") isPredicative (string [] words) {
@@ -357,11 +412,17 @@ Tuple!(TreeNode, "nomo", string[], "rest", bool, "succ") visitCompleteNomo (stri
     // Tie ĉi, oni povas havi specialan dativon kiel "al kiu"
     // Aŭ specialaj prepozicioj komencantaj per iu 'ki' vorto
     // Povas esti 'kaj' aŭ 'aŭ' alie
-
+    
     foreach (a ; adj)
 	(cast (Noun) nomo).addAttributes (a);
     
     (cast (Noun) nomo).setIsLa (isLa);
+
+    auto result = constructKiAsertoForNomo (words);
+    if (result.aserto !is null) {
+	words = result.rest;
+	(cast (Noun) nomo).addAttributes (result.aserto);
+    }
     
     return Tuple!(TreeNode, "nomo", string[], "rest", bool, "succ") (nomo, words, true);
 }
