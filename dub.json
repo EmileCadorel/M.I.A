@@ -1,0 +1,9 @@
+{
+	"name": "syntax",
+	"authors": [
+		"emile"
+	],
+	"description": "Syntax analyses of Esperanto",
+	"copyright": "Copyright © 2019, emile",
+	"license": "proprietary"
+}
