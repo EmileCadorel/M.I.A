@@ -1,12 +1,3 @@
-# Tiu dosiero listigas radikojn kiuj, kvankam ili finiĝas per
-# -ant, -ont, -int, -at, -ot, it, ili ne estas participoj.
-#
-# Ne indas listigi radikojn kiel (kat, pont) kun nur unu litero antaŭ
-# la finaĵo -ant, -at (ktp) ĉar verboj havas almenaŭ 2 literoj. Do tiuj
-# vortoj ne povas esti participoj.
-#
-# Bonvolu sendi korektojn kaj mankantajn vortojn al:
-# Dominique Pellé <dominique.pelle@gmail.com>
 abat
 abrikot
 absint

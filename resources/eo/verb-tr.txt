@@ -1,14 +1,3 @@
-# Verboj transitivaj
-#
-# Ne necesas listigi tie verbojn kun la prefiksoj mal-, ek-,
-# re-, mis-, fi- kaj la sufiksoj -ad, -aĉ, -et, -eg ĉar ili
-# neniam ŝanĝas transitivecon de la verbo.
-#
-# Ne necesas listigi verboj kun sufiksoj -ig ĉar ili
-# estas ĉiam transitivaj.
-#
-# Bonvolu sendi korektojn kaj mankantajn verbojn al:
-# Dominique Pellé <dominique.pelle@gmail.com>
 abandoni
 abdiki
 abĵuri

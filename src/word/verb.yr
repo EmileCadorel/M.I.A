@@ -1,0 +1,32 @@
+mod word::verb;
+
+import std::io;
+import word::base;
+
+
+/**
+ * A verb. I think there is not much to say about what is a verb, everybody knows that
+ */
+pub class @final Verb over Word {
+
+    let _transitive : bool;
+
+    /**
+     * Verb class is stupid, and does know anything, we have to give it everything
+     * @params: 
+     * - radical: The radical of the verb (passed to super)
+     * - transitive: true if the verb is transitive, false otherwise
+     */
+    pub self (radical : [c32], transitive : bool)
+        with super (radical), _transitive = transitive
+    {}
+
+    /**
+     * @returns: true if the verb is transitive, false otherwise
+     */
+    pub def isTransitive (self)-> bool {
+        self._transitive
+    }
+
+    impl Printable;    
+}

@@ -1,0 +1,17 @@
+mod word::cjtn;
+
+import std::io;
+import word::base;
+
+/**
+ * A conjunction. "dum", "kiu", kia", "krome", etc...
+ */
+pub class @final Conjunction over Word {
+
+    pub self (radical : [c32])
+        with super (radical)
+    {}
+
+    impl Printable;
+}
+

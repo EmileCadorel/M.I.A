@@ -1,0 +1,16 @@
+mod word::adjv;
+
+import word::base;
+import std::io;
+
+/**
+ * Adjective words, "blua", "ruĝa", "ronda", etc.
+ */
+pub class @final Adjective over Word {
+
+    pub self (radical : [c32])
+        with super (radical)
+    {}
+
+    impl Printable;    
+}

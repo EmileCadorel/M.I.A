@@ -1,0 +1,16 @@
+mod word::advb;
+
+import std::io;
+import word::base;
+
+/**
+ * Adverb. longe, daŭre, skribe, etc.
+ */
+pub class @final Adverb over Word {
+
+    pub self (radical : [c32])
+        with super (radical)
+    {}
+
+    impl Printable;
+}

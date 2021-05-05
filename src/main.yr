@@ -1,6 +1,49 @@
 mod main;
 import std::io;
+import std::lexer;
+import std::args, std::fs::_, std::conv;
+import parser, word::_;
+
+struct
+| input : [c32]
+| resources : [c32] = "./resources/eo/"
+| help : YesNo
+ -> Arguments;
+
+def readTxt (txt : [c8]) {
+    let dmut lexer = Lexer!{c8}::new (txt, skips->  [","s8, ";"s8, "."s8, "?"s8, "!"s8, ")"s8, "("s8, " "s8, "\n"s8, "\r"s8, "\t"s8, "\""s8, "'"s8, "_"s8, ":"s8, "—"s8, "*"s8]);
+    loop {
+        let (word, line, col) = lexer:.next ();
+        if (line == 0us) break {}
+        println (line," ", col);
+        println (word.to![c32] ().to!(&Word) ());
+    }
+}
+
+def main (args : [[c8]]) {
+    let dmut parser = ArgumentParser!{Arguments}::new ()
+        :.info!"help" (short-> "h", comments-> "print this help and exit", isHelp-> true)
+        :.info!"input" (short-> "i", comments-> "input file")
+        :.info!"resources" (short-> "r", comments-> "resource directory");
+
+    {
+        let a = parser.parse (args);
+        registerResources (Path::new (a.resources));
+        with dmut file = File::open (Path::new (a.input)) {
+            readTxt (file:.readAll ());
+        }
+    } catch {
+        err : &ArgumentError => {
+            println (parser.simpleUsage (cmd-> "gyllir"));
+            println (parser.diagnosis (err));
+        }
+        _ : &HelpRequired => {
+            println (parser.usage (cmd-> "gyllir"));
+        }
+        x: _ => {
+            println (x);
+        }
+    }
+
     
-def main () {
-    println ("Hello World !!");
 }

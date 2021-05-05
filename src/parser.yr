@@ -1,0 +1,145 @@
+mod parser;
+
+import std::io;
+import word::_;
+import std::fs;
+import std::collection::set, std::fs::_;
+import std::conv;
+
+static mut __VERB_NTR__ = HashSet!{[c32]}::new ();
+static mut __VERB_TR__ = HashSet!{[c32]}::new ();
+static mut __ROOT_ANT_AT__ = HashSet!{[c32]}::new ();
+static mut __COMMON_CONJ__ = HashSet!{[c32]}::new ();
+static mut __COMMON_NOUN__ = HashSet!{[c32]}::new ();
+
+pub def registerResources (path : &Path) {
+    let dmut verbNtr = HashSet!{[c32]}::new ();
+    let dmut verbTr = HashSet!{[c32]}::new ();
+    let dmut rootAt = HashSet!{[c32]}::new ();
+    let dmut commonConj = HashSet!{[c32]}::new ();
+    let dmut commonNoun = HashSet!{[c32]}::new ();
+    
+    with dmut f = File::open (path.push ("root-ant-at.txt"s8)) {
+        loop {
+            let w = f:.readUntil ("\n"s8);
+            if (w.len == 0us) break {}
+            rootAt:.insert (w[0us..$-1us].to![c32] ());
+        }
+    }
+
+    with dmut f = File::open (path.push ("verb-ntr.txt"s8)) {
+        loop {
+            let w = f:.readUntil ("\n"s8);
+            if (w.len == 0us) break {}
+            verbNtr:.insert (w[0us..$-1us].to![c32] ());
+        }
+    }
+
+    with dmut f = File::open (path.push ("verb-tr.txt"s8)) {
+        loop {
+            let w = f:.readUntil ("\n"s8);
+            if (w.len == 0us) break {}
+            verbTr:.insert (w[0us..$-1us].to![c32] ());
+        }
+    }
+
+    with dmut f = File::open (path.push ("common-conj.txt"s8)) {
+        loop {
+            let w = f:.readUntil ("\n"s8);
+            if (w.len == 0us) break {}
+            commonConj:.insert (w[0us..$-1us].to![c32] ());
+        }
+    }
+
+    with dmut f = File::open (path.push ("common-noun.txt"s8)) {
+        loop {
+            let w = f:.readUntil ("\n"s8);
+            if (w.len == 0us) break {}
+            commonNoun:.insert (w[0us..$-1us].to![c32] ());
+        }
+    }
+
+    __VERB_TR__ = verbTr;
+    __VERB_NTR__ = verbNtr;
+    __COMMON_CONJ__ = commonConj;
+    __ROOT_ANT_AT__ = rootAt;
+    __COMMON_NOUN__ = commonNoun;
+} catch {
+    x : _ => {
+        println (x);
+        __pragma!panic ();
+    }
+}
+
+
+prv def toLower (str : [c32])-> [c32] {
+    import std::algorithm::iteration;
+
+    str.map!{|x| => {
+        if (x >= 'A'c32 && x <= 'Z'c32) {
+            x - 'A'c32 + 'a'c32
+        } else {
+            match x {
+                'Ĉ'c32 => {'ĉ'c32}
+                _ => { x } 
+            }
+        }
+    }} ()
+}
+
+/**
+ * Convert a str into a word
+ * 
+ * @assume: the str contains only one word, with no space
+ * @info: if the word is not considered as a valid Ymir word, a Noun is returned
+ */
+pub def to {T of &Word} (str : [c32])-> &Word {
+    let s = str.toLower ();
+    match s [$ - 1us] {
+        'i'c32 => { return parseVerb (s); }
+        'o'c32 => { return parseNoun (s); }
+        'e'c32 => { return parseAdvb (s); }
+        'a'c32 => { return parseAdjv (s); }
+        'u'c32 => { return parseVerb (s); }
+        'n'c32 => { return to!(&Word) (s [0us .. $-1us]); }
+        'j'c32 => { return to!(&Word) (s [0us .. $-1us]); }
+        's'c32 => { return parseVerb (s); }
+        _ => {
+            return parseAux (s);
+        }
+    }
+} catch {
+    _ => {
+        __pragma!panic ();
+    }
+}
+
+
+prv def parseVerb (_ : [c32])-> &Word {
+    Verb::new (""s32, false)
+}
+
+prv def parseNoun (_ : [c32])-> &Word {
+    Noun::new (""s32)
+}
+
+prv def parseAdvb (_ : [c32])-> &Word {
+    Adverb::new (""s32)
+}
+
+prv def parseAdjv (_ : [c32])-> &Word {
+    Adjective::new (""s32)
+}
+
+prv def parseAux (w : [c32])-> &Word {
+    if (w in __COMMON_CONJ__) {
+        return Conjunction::new (w);
+    }
+
+    if (w in __COMMON_NOUN__) {
+        return Noun::new (w);
+    }
+    
+    println (w);
+    __pragma!panic ();
+}
