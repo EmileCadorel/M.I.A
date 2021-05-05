@@ -1,0 +1,8 @@
+license = "proprietary"
+author = "emile"
+type = "executable"
+description = "A minimal Ymir app"
+version = "0.1.0"
+name = "MIA"
+
+[dependencies]
