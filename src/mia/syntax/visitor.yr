@@ -1,0 +1,179 @@
+mod mia::syntax::visitor;
+
+import std::io;
+import std::fs;
+import std::collection::set, std::fs::_;
+import std::collection::vec;
+import std::conv, mia::syntax::lexer;
+import mia::utils::colors;
+import mia::syntax::tree::sentence;
+
+/**
+ * A syntax exception is the exception thrown when the syntax visitor does not succeed to read a sentence.
+ * This can be due to many many things, for example limitations of the syntax visitor
+ * For example, the first implementation won't accept any error in the sentence 
+ * The message of the error, tries to be clear about the error, however
+ */
+class SyntaxError over Exception {
+    pub let msg : [c8];
+    
+    pub self (msg : [c8]) with msg = msg {}
+    
+    impl Printable {
+        pub over print (self) {
+            self::super.print ();
+        }
+    }
+}
+
+/**
+ * Transform a word into a lower case word, The syntax visitor does not take into account the majuscule (for the moment at least)
+ * @example:
+ * ===========
+ * assert (toLower ("Ĉar") == "ĉar");
+ * ===========
+ */
+def toLower (str : [c32])-> [c32] {
+    import std::algorithm::iteration;
+
+    str.map!{|x| => {
+        if (x >= 'A'c32 && x <= 'Z'c32) {
+            x - 'A'c32 + 'a'c32
+        } else {
+            match x {
+                'Ĉ'c32 => {'ĉ'c32}
+                'Ŝ'c32 => {'ŝ'c32}
+                'Ĥ'c32 => {'ĥ'c32}
+                'Ĵ'c32 => {'ĵ'c32}
+                'Ĝ'c32 => {'Ĝ'c32}
+                'Ŭ'c32 => {'ŭ'c32}
+                _ => { x } 
+            }
+        }
+    }} ()
+}
+   
+/**
+ * Load a resource file, and return the list of words cointained in the file
+ * @throws: 
+ *   - FsError, if the file of resource does not exists
+ */
+def loadResource (path : &Path)-> &HashSet![c32]
+    throws &FsError
+{
+    let dmut words = HashSet!{[c32]}::new ();
+    with dmut f = File::open (path) {
+        loop {
+            let w = f:.readUntil ("\n"s8);
+            if (w.len == 0us) break {}
+            __pragma!trusted ({
+                words:.insert (w [0us .. $-1us].to![c32] ().toLower ());
+            }); // OutOfArray is impossible, this would mean an error of the language itself
+        }
+    }
+    words
+}
+
+enum
+| COMA = ","s8
+| QUOTE = "'"s8
+| DQUOTE = "\""s8
+| LPAR = "("s8
+| RPAR = ")"s8
+| HYPHEN = "-"s8
+| SEMI_COLON = ";"s8
+| COLON = ":"s8
+| QUESTION = "?"s8
+| EXLAM = "!"s8
+| DOT = "."s8
+| TDOT = "..."s8
+| LONG_HYPHEN = "—"s8
+ -> Punctuation;
+
+
+/**
+ * The syntax visitor is used to transform a sentence into a list of word, it
+ * tries its best to apply a usage to every word, but does not care
+ * about context This part can be seen as a syntax evaluation, the
+ * semantic part is done later on the tree returned by the syntax visitor
+ * @example: 
+ * =============
+ * =============
+ */
+pub class @final SyntaxVisitor {
+   
+    prv {
+        let mut __VERB_NTR__ = HashSet!{[c32]}::new ();
+        let mut __VERB_TR__ = HashSet!{[c32]}::new ();
+        let mut __ROOT_ANT_AT__ = HashSet!{[c32]}::new ();
+        let mut __COMMON_CONJ__ = HashSet!{[c32]}::new ();
+        let mut __COMMON_NOUN__ = HashSet!{[c32]}::new ();
+        let mut __PRONOUNS__ = HashSet!{[c32]}::new ();
+        let mut __PREFIXES__ = HashSet!{[c32]}::new ();
+        let mut __SUFFIXES__ = HashSet!{[c32]}::new ();
+        let mut __CUMULATIVE_SUFFIXES__ = HashSet!{[c32]}::new ();
+        let mut __KNOWN_WORDS__ = HashSet!{[c32]}::new ();
+    }
+
+    /**
+     * Create a new syntax visitor instance
+     * @params: 
+     *   - the location of the resource files to load
+     * @info: the name of the resource files is standard 
+     */
+    pub self (resource : &Path = Path::new ("."s8))        
+        with __VERB_TR__ = loadResource (resource.push ("verb-tr.txt"s8)),
+             __VERB_NTR__ = loadResource (resource.push ("verb-ntr.txt"s8)),
+             __COMMON_CONJ__ = loadResource (resource.push ("common-conj.txt"s8)),
+             __ROOT_ANT_AT__ = loadResource (resource.push ("root-ant-at.txt"s8)),
+             __COMMON_NOUN__ = loadResource (resource.push ("common-noun.txt"s8)),
+             __PRONOUNS__ = loadResource (resource.push ("pronouns.txt"s8)),
+             __PREFIXES__ = loadResource (resource.push ("prefixes.txt"s8)),
+             __SUFFIXES__ = loadResource (resource.push ("suffixes.txt"s8)),
+             __CUMULATIVE_SUFFIXES__ = loadResource (resource.push ("cumul-suffixes.txt"s8)),
+             __KNOWN_WORDS__ = loadResource (resource.push ("word-list.txt"s8))
+        throws &FsError
+    {}
+
+    
+    /**
+     * Visit a esperanto sentence, and return the abstract syntax tree of the sentence
+     * The goal of this first visit is to isolate the words of the sentence, and try to affect roles to the words
+     * There is no context in this visit, the context will be used afterwards in the semantic analyses
+     * Maybe that is not possible, and we will need some context (probabely), but for the moment we will try without
+     * @info: a sentence generally ends with a dot, an interogation mark or an exlamation mark. If none of these is given, a dot is infered
+     * @example: 
+     * ===================
+     * let dmut mia_syntax = SyntaxVisitor::new ();
+     * let sentence = mia_syntax:.visitSentence ("kiel vi fartas?"s8);
+     * println (sentence); 
+     * ===================
+     */
+    pub def visitSentence (mut self, sentence : [c8])-> &Sentence {
+        let dmut lexer = Lexer::new (sentence, tokens-> Punctuation::__members__);
+        loop {
+            let w = lexer:.next ();
+            println (w);
+            if w.isEof () break Sentence::new ();
+        } 
+    }    
+
+    
+    impl Printable {
+        
+        pub over print (self) {
+            println (typeof (self)::typeid, '(');
+            println (Colors::GREEN, "\tTransitive Verbs : ", Colors::RESET, self.__VERB_TR__);
+            println (Colors::GREEN, "\tNon transitive Verbs : ", Colors::RESET, self.__VERB_NTR__);
+            println (Colors::GREEN, "\tCommon conjunction : ", Colors::RESET, self.__COMMON_CONJ__);
+            println (Colors::GREEN, "\tCommon nouns : ", Colors::RESET, self.__COMMON_NOUN__);
+            println (Colors::GREEN, "\tPronouns : ", Colors::RESET, self.__PRONOUNS__);
+            println (Colors::GREEN, "\tPrefixes : ", Colors::RESET, self.__PREFIXES__);
+            println (Colors::GREEN, "\tSuffixes : ", Colors::RESET, self.__SUFFIXES__);
+            println (Colors::GREEN, "\tCumulative suffixes : ", Colors::RESET, self.__CUMULATIVE_SUFFIXES__);
+            println (Colors::GREEN, "\tRoot-ant-at : ", Colors::RESET, self.__ROOT_ANT_AT__);
+            print (')');
+        }        
+
+    }
+}

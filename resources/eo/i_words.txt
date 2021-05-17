@@ -1,5 +1,3 @@
-# Tiu dosiero listigas vortoj kiuj finiĝas per -i -u kvankam ili ne estas verboj
-#
 mi
 vi
 li

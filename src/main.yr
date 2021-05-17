@@ -2,45 +2,43 @@ mod main;
 import std::io;
 import std::lexer;
 import std::args, std::fs::_, std::conv;
-import parser, word::_;
+import mia::syntax::visitor;
 
 struct
-| input : [c32]
+| input : [c32] = "."
 | resources : [c32] = "./resources/eo/"
 | help : YesNo
  -> Arguments;
 
-def readTxt (txt : [c8]) {
-    let dmut lexer = Lexer!{c8}::new (txt, skips->  [","s8, ";"s8, "."s8, "?"s8, "!"s8, ")"s8, "("s8, " "s8, "\n"s8, "\r"s8, "\t"s8, "\""s8, "'"s8, "_"s8, ":"s8, "—"s8, "*"s8]);
-    loop {
-        let (word, line, col) = lexer:.next ();
-        if (line == 0us) break {}
-        println (line," ", col);
-        println (word.to![c32] ().to!(&Word) ());
-    }
-}
+
 
 def main (args : [[c8]]) {
-    let dmut parser = ArgumentParser!{Arguments}::new ()
+    let dmut argParser = ArgumentParser!{Arguments}::new ()
         :.info!"help" (short-> "h", comments-> "print this help and exit", isHelp-> true)
         :.info!"input" (short-> "i", comments-> "input file")
         :.info!"resources" (short-> "r", comments-> "resource directory");
 
     {
-        let a = parser.parse (args);
-        registerResources (Path::new (a.resources));
-        with dmut file = File::open (Path::new (a.input)) {
-            readTxt (file:.readAll ());
-        }
+        let a = argParser.parse (args);
+        let dmut mia_syntax = SyntaxVisitor::new (resource-> Path::new (a.resources));
+        println (mia_syntax:.visitSentence ("Alicio, jam longan tempon sidinte apud sia fratino sur la deklivo,\n
+tre enuiĝis pro senokupo. Unu, du foje ŝi prove rigardis en la\n
+libron kiun la fratino legas, sed povis vidi en ĝi nek desegnojn nek\n
+konversaciojn, kaj \"por kio utilas libro,\" pensis ŝi, \"enhavanta nek\n
+desegnojn nek konversaciojn?\" Ŝi do ekpripensis (ne tre vigle ĉar\n
+la tago estis varma, kaj ŝi sentis sin tre dormema) ĉu la plezuro\n
+fari ĉenon el lekantetoj valorus la laboron sin levi kaj kolekti\n
+lekantetojn, kiam tutapude preterkuris Blanka kuniklo kun paleruĝaj\n
+okuloj."s8));
     } catch {
         err : &ArgumentError => {
-            println (parser.simpleUsage (cmd-> "gyllir"));
-            println (parser.diagnosis (err));
+            println (argParser.simpleUsage (cmd-> "MIA"));
+            println (argParser.diagnosis (err));
         }
         _ : &HelpRequired => {
-            println (parser.usage (cmd-> "gyllir"));
+            println (argParser.usage (cmd-> "MIA"));
         }
-        x: _ => {
+        x : _ => {
             println (x);
         }
     }

@@ -1,0 +1,164 @@
+mod mia::syntax::lexer
+    
+import mia::syntax::tokenizer;
+import std::io;
+import mia::syntax::word;
+
+import std::collection::vec;
+import std::collection::map;
+import std::collection::set; 
+
+pub class @final Lexer {
+
+    let dmut _tzer : &Tokenizer;
+    
+    let _content : [c8];
+
+    let dmut _skips = HashSet!{[c8]}::new ()
+    
+    let mut _line = 1us;
+
+    let mut _col = 1us;
+
+    let mut _cursor = 0us;
+
+    let dmut _rewinders = Vec!{(usize, usize, usize, usize)}::new ();
+
+    let dmut _lineSeek = 0us;
+
+    let mut _eof : bool = false;
+
+    /**
+     * Create a new lexer, ready to split content
+     * @params: 
+     *    - content: the content to split
+     *    - tokens: the list of tokens that split the string, (cf. Tokenizer)
+     *    - skips: the list of tokens that will be omitted by the lexer when reading (by default [" ", "\n", "\t", "\r"])
+     * @warning: if the skips token are not in tokens, they are added, so they split the content 
+     */
+    pub self (content : [c8], tokens: [[c8]] = [" "s8], skips: [[c8]] = [" "s8, "\n"s8, "\t"s8, "\r"s8])
+        with _tzer = Tokenizer::new (tokens-> tokens),
+             _content = content
+    {        
+        self._rewinders:.push ((self._cursor, self._line, self._col, self._lineSeek));
+
+        for i in skips {
+            self._skips:.insert (i);
+            self._tzer:.insert (i, isSkip-> true);
+        }
+    }        
+
+    pub def setSkips (mut self, skips : [[c8]]) {
+        for i in self._skips {
+            self._tzer:.insert (i, isSkip-> false);
+        }
+        
+        self._skips:.clear ();
+        
+        for i in skips {
+            self._skips:.insert (i);
+            self._tzer:.insert (i, isSkip-> true);
+        }
+    }
+
+    /**
+     * Read the next word in the lexer, and returns it, with the documentation read before it
+     */
+    pub def next (mut self)-> &Word {
+        if (self._eof) return Word::eof ();
+        
+        self._rewinders:.push ((self._cursor, self._line, self._col, self._lineSeek));
+        return loop {
+            let (wd, isSkip) = self._tzer.next (self._content [self._cursor .. $]);
+            if (wd != 0u64) {
+                let ret = self._content [self._cursor .. self._cursor + wd];
+                self._cursor += wd;
+                let (old_l, old_c) = (self._line, self._col);
+                self:.incrementLine (ret);
+                if (!isSkip) {
+                    return Word::new (str-> ret, fileContent-> self._content, old_l, old_c, self._cursor - wd, self._lineSeek);                    
+                }                
+            } else {
+                self._eof = true;
+                break Word::eof ();
+            }
+        };
+    } catch {
+        _ => {
+            self._eof = true;
+            return Word::eof ();
+        }
+    }
+
+    /**
+     * Increment the line, col, and lineSeek counters
+     */
+    prv def incrementLine (mut self, txt : [c8]) {
+        for i in txt {
+            if (i == '\n'c8) {
+                self._lineSeek = self._lineSeek + self._col;
+                self._line += 1us;
+                self._col = 1us;
+            } else {
+                self._col += 1us;
+            }
+        }
+    }
+
+    /**
+     * Rewind to a previous location in the file
+     * Each time the function next is called, the lexer saves the cursor position
+     * This function rewind go to that cursor position, so if we rewind 10 times, we will get the last 10 next calls
+     * @warning: 
+     * ===============
+     * when toggeling skips, and doComment, the rewind does not garantee, that the lexer will return at least nb tokens
+     * ===============
+     */
+    pub def rewind (mut self, nb : usize = 1us) {
+        if (self._eof) {
+            self._rewinders:.pop ()?;
+            self._eof = false;
+        }
+        
+        for _ in 0us .. nb {
+            {
+                let (x, y, z, w) = self._rewinders [self._rewinders.len () - 1us] ;
+                self._cursor = x;
+                self._line = y;
+                self._col = z;
+                self._lineSeek = w;
+                self._rewinders:.pop ();
+            }?;
+        };
+
+        if (self._rewinders.len () == 0us) {
+            self._rewinders:.push ((self._cursor, self._line, self._col, self._lineSeek));
+        }
+    }
+    
+    /**
+     * @returns: the counter of next call
+     * @info: this information can be usefull to go back rapidely
+     * @example: 
+     * =================
+     * let dmut lex : &Lexer = ...
+     * let read_Nb : usize = ...
+     * let counter = lex.getCounter ();
+     * for i in 0us .. read_Nb {
+     *     println (lex:.next ()._0);
+     * }
+     * lex:.rewind (nb-> lex.getCounter () - counter); // go back of number of valid read done
+     * // so the lexer will be reset, as if the for loop never executed
+     * =================
+     */
+    pub def getCounter (self)-> usize {
+        self._rewinders.len ()
+    }
+    
+
+    impl std::io::Printable;
+    
+}
+
+
+

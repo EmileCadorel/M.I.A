@@ -1,0 +1,7 @@
+mod mia::syntax::tree::sentence;
+import std::io;
+
+pub class Sentence {
+    pub self () {}
+    impl Printable;
+}
