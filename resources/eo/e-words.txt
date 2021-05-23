@@ -9,4 +9,3 @@ ekde
 kie
 ve
 he
-le

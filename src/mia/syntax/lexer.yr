@@ -1,20 +1,131 @@
 mod mia::syntax::lexer
     
 import mia::syntax::tokenizer;
-import std::io;
-import mia::syntax::word;
+import std::io, std::stream;
 
 import std::collection::vec;
 import std::collection::map;
 import std::collection::set; 
+import mia::utils::colors;
+
+/**
+ * A word encode a content part of a file
+ * It is used to identify part of a file as a token, keyword, identifier, etc.
+ */
+pub class @final Token {
+
+    let _str : [c32];
+
+    let _line : usize;
+
+    let _col : usize;
+
+    let _seek : usize;
+
+    let _fileContent : [c32];
+
+    let _lineSeek : usize;
+
+    let _isEof : bool = false;
+
+    /**
+     * Create an empty word
+     * @params: 
+     *   - filename: the file in which we want an empty word
+     */
+    pub self eof () with
+        _str = "", _line = 0us, _col = 0us, _seek = 0us, _fileContent = "", _lineSeek = 0us, _isEof = true
+    {}
+
+    /**
+     * Create a word from a file 
+     * @params: 
+     *   - str: the content of the word
+     *   - filename: the name of the file that contains the word
+     *   - line: the location line of the word
+     *   - col: the location column of the word
+     *   - seek: the location cursor of the word (number of c32 preceding it)
+     *   - lineSeek: the location cursor of the beginning of the line containing the word
+     */
+    pub self (str : [c32], fileContent : [c32], line : usize, col : usize, seek : usize, lineSeek : usize) with
+        _str = str, _fileContent = fileContent, _line = line, _col = col, _seek = seek, _lineSeek = lineSeek
+    {}
+
+    /**
+     * @returns: the content of the word
+     */
+    pub def str (self) -> [c32] {
+        self._str
+    }
+
+    /**
+     * @returns: the length of the content of the word
+     */
+    pub def len (self) -> usize {
+        self._str.len 
+    }
+
+    /**
+     * @returns: the location column of the word
+     */
+    pub def col (self) -> usize {
+        self._col
+    }
+
+    /**
+     * @returns: the location line of the word
+     */
+    pub def line (self) -> usize {
+        self._line
+    }
+
+    /**
+     * @returns: the content of the file containing the word
+     */
+    pub def fileContent (self) -> [c32] {
+        self._fileContent
+    }
+
+    /**
+     * @returns: the cursor position of the line containing the word
+     */
+    pub def lineSeek (self)-> usize {
+        self._lineSeek
+    }
+
+    /**
+     * @returns: true if the word is empty, (constructed with eof), false otherwise 
+     */
+    pub def isEof (self) -> bool {
+        self._isEof
+    }
+
+    /**
+     * @returns: true if the word is not empty, and its content is equals to o
+     */
+    pub def opEquals (self, o : [c32]) -> bool {
+        if (self._isEof)
+            false
+        else 
+            self._str == o
+    }       
+    
+    impl Streamable {
+
+        pub over toStream (self, dmut stream : &StringStream)-> void {
+            stream:.write (typeof (self)::typeid, "(", Colors::YELLOW, self._str, Colors::RESET, ",", self._line, ",", self._col, ")");
+        }
+    }
+    
+}
 
 pub class @final Lexer {
 
     let dmut _tzer : &Tokenizer;
     
-    let _content : [c8];
+    let _content : [c32];
 
-    let dmut _skips = HashSet!{[c8]}::new ()
+    let dmut _skips = HashSet!{[c32]}::new ()
     
     let mut _line = 1us;
 
@@ -36,7 +147,7 @@ pub class @final Lexer {
      *    - skips: the list of tokens that will be omitted by the lexer when reading (by default [" ", "\n", "\t", "\r"])
      * @warning: if the skips token are not in tokens, they are added, so they split the content 
      */
-    pub self (content : [c8], tokens: [[c8]] = [" "s8], skips: [[c8]] = [" "s8, "\n"s8, "\t"s8, "\r"s8])
+    pub self (content : [c32], tokens: [[c32]] = [" "], skips: [[c32]] = [" ", "\n", "\t", "\r"])
         with _tzer = Tokenizer::new (tokens-> tokens),
              _content = content
     {        
@@ -48,7 +159,7 @@ pub class @final Lexer {
         }
     }        
 
-    pub def setSkips (mut self, skips : [[c8]]) {
+    pub def setSkips (mut self, skips : [[c32]]) {
         for i in self._skips {
             self._tzer:.insert (i, isSkip-> false);
         }
@@ -62,10 +173,10 @@ pub class @final Lexer {
     }
 
     /**
-     * Read the next word in the lexer, and returns it, with the documentation read before it
+     * Read the next word in the lexer, and returns it
      */
-    pub def next (mut self)-> &Word {
-        if (self._eof) return Word::eof ();
+    pub def next (mut self)-> &Token {
+        if (self._eof) return Token::eof ();
         
         self._rewinders:.push ((self._cursor, self._line, self._col, self._lineSeek));
         return loop {
@@ -76,26 +187,26 @@ pub class @final Lexer {
                 let (old_l, old_c) = (self._line, self._col);
                 self:.incrementLine (ret);
                 if (!isSkip) {
-                    return Word::new (str-> ret, fileContent-> self._content, old_l, old_c, self._cursor - wd, self._lineSeek);                    
+                    return Token::new (str-> ret, fileContent-> self._content, old_l, old_c, self._cursor - wd, self._lineSeek);                    
                 }                
             } else {
                 self._eof = true;
-                break Word::eof ();
+                break Token::eof ();
             }
         };
     } catch {
         _ => {
             self._eof = true;
-            return Word::eof ();
+            return Token::eof ();
         }
     }
 
     /**
      * Increment the line, col, and lineSeek counters
      */
-    prv def incrementLine (mut self, txt : [c8]) {
+    prv def incrementLine (mut self, txt : [c32]) {
         for i in txt {
-            if (i == '\n'c8) {
+            if (i == '\n'c32) {
                 self._lineSeek = self._lineSeek + self._col;
                 self._line += 1us;
                 self._col = 1us;
@@ -116,7 +227,6 @@ pub class @final Lexer {
      */
     pub def rewind (mut self, nb : usize = 1us) {
         if (self._eof) {
-            self._rewinders:.pop ()?;
             self._eof = false;
         }
         
@@ -154,9 +264,13 @@ pub class @final Lexer {
     pub def getCounter (self)-> usize {
         self._rewinders.len ()
     }
-    
 
-    impl std::io::Printable;
+
+    pub def isEof (self)-> bool {
+        self._eof
+    }
+
+    impl Streamable;
     
 }
 

@@ -1,13 +1,8 @@
 mod mia::syntax::tokenizer;
 
-import core::object;
-import core::array;
-import core::typeinfo;
-import core::exception;
-
 import std::collection::map;
 import std::collection::vec;
-import std::io;
+import std::io, std::stream;
 
 /**
  * A tokenizer is an enhanced string splitter, that splits strings using tokens instead of just chars
@@ -16,23 +11,23 @@ import std::io;
  * ============
  * // using a tokenizer, tokens can be multiple letter long, and there can be collision between tokens
  * // For example, the token '=' and '=>' won't be a problem for the tokenizer
- * let dmut tzer = Tokenizer::new (tokens-> ["("s8, ")"s8, "=>"s8, ","s8, "="s8, "+"s8, "*"s8]);
+ * let dmut tzer = Tokenizer::new (tokens-> ["(", ")", "=>", ",", "=", "+", "*"]);
  * // set a skip token
- * tzer:.insert (" "s8, isSkip-> true); 
+ * tzer:.insert (" ", isSkip-> true); 
  *
  * let mut cursor = 0u64;
- * let str = "(x, y) => x + y * 2"s8;
+ * let str = "(x, y) => x + y * 2";
  * loop {
  *    let (len, isSkip) = tzer.next (str [cursor .. $]);
  *    if len != 0u64 {
- *        println (format ("%(y) -> %(b), %(r)"s8, str [cursor .. cursor + len], isSkip));
+ *        println (format ("%(y) -> %(b), %(r)", str [cursor .. cursor + len], isSkip));
  *    } else break {}
  * }
  * ============
  */
 pub class @final Tokenizer {
 
-    prv let dmut _heads = HashMap!{c8, &internal::Node}::new ();
+    prv let dmut _heads = HashMap!{c32, &internal::Node}::new ();
 
     /**
      * Create a new tokenizer, with a set of tokens
@@ -46,7 +41,7 @@ pub class @final Tokenizer {
      * assert (lst == ["(", "x", ",", " ", "y", ")", " ", "=>", " ", "x", " ", ">", " ", "y"]); 
      * ============
      */
-    pub self (tokens: [[c8]] = []) {
+    pub self (tokens: [[c32]] = []) {
         for i in tokens {
             self:.insert (i, isSkip-> false);
         }
@@ -66,7 +61,7 @@ pub class @final Tokenizer {
      * assert (lst == ["x", " ", "+=", " ", "y"]);
      * ================
      */
-    pub def insert (mut self, token : [c8], isSkip : bool = false) {
+    pub def insert (mut self, token : [c32], isSkip : bool = false) {
         if (token.len != 0u64) {
             {               
                 let fnd = (self._heads.find (token[0]));
@@ -116,7 +111,7 @@ pub class @final Tokenizer {
      * assert (len._0 == 0us); 
      * ============
      */
-    pub def next (self, str : [c8])-> (usize, bool) {
+    pub def next (self, str : [c32])-> (usize, bool) {
         for i in 0us .. str.len {
             {
                 let fnd = (self._heads.find (str [i]));
@@ -146,7 +141,7 @@ pub class @final Tokenizer {
         return (str.len, false);
     }    
 
-    impl std::io::Printable;
+    impl Streamable;
     
 }
 
@@ -158,13 +153,13 @@ mod internal {
     pub class @final Node {
 
         // The current value of the node
-        let _key : c8; 
+        let _key : c32; 
 
         // Can terminate a token? or is part of bigger tokens
         let _isToken : bool = false;
 
         // The list of possible continuation of the token
-        let _heads : &HashMap!{c8, &Node};
+        let _heads : &HashMap!{c32, &Node};
 
         let _isSkip : bool;
         
@@ -175,7 +170,7 @@ mod internal {
          *   - isToken: can terminate a token 
          *   - heads: the list of possible continuation
          */
-        pub self (key : c8, isToken : bool = false, heads : &HashMap!{c8, &Node} = {HashMap!{c8, &Node}::new ()}, isSkip : bool) with _key = key, _isToken = isToken, _heads = heads, _isSkip = isSkip
+        pub self (key : c32, isToken : bool = false, heads : &HashMap!{c32, &Node} = {HashMap!{c32, &Node}::new ()}, isSkip : bool) with _key = key, _isToken = isToken, _heads = heads, _isSkip = isSkip
         {}
         
         /**
@@ -208,12 +203,12 @@ mod internal {
          * assert (node.len ("[-") == 1us); // accept only the '['
          * ==============
          */
-        pub def insert (self, str : [c8], isSkip : bool) -> &Node {
+        pub def insert (self, str : [c32], isSkip : bool) -> &Node {
             if (str.len == 0us) {
                 return Node::new (self._key, isToken-> true, heads-> self._heads, isSkip-> isSkip)
             }
 
-            let dmut retDict = HashMap!{c8, &Node}::new ();
+            let dmut retDict = HashMap!{c32, &Node}::new ();
             for i, j in self._heads {
                 retDict:.insert (i, j);                    
             }
@@ -250,7 +245,7 @@ mod internal {
          * assert (node.len ("+ and some rest")._0 == 1us); // " +" are accepted
          * =================
          */
-        pub def len (self, content : [c8])-> (usize, bool) {
+        pub def len (self, content : [c32])-> (usize, bool) {
             if (content.len == 0us) {
                 if (self._isToken)
                     return (1us, self._isSkip);
@@ -280,7 +275,7 @@ mod internal {
         /**
          * @returns: the key of the node
          */
-        def key (self) -> c8 {
+        def key (self) -> c32 {
             self._key
         }
 

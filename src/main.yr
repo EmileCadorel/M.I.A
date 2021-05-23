@@ -10,6 +10,17 @@ struct
 | help : YesNo
  -> Arguments;
 
+def console (dmut miaParser : &SyntaxVisitor) {
+    loop {
+        let line = read![c32] (ask-> "> ");
+        {
+            miaParser.visitSentence (line);
+        } catch {
+            x : _ => println (x);
+        }
+    }
+}
+
 
 
 def main (args : [[c8]]) {
@@ -21,15 +32,7 @@ def main (args : [[c8]]) {
     {
         let a = argParser.parse (args);
         let dmut mia_syntax = SyntaxVisitor::new (resource-> Path::new (a.resources));
-        println (mia_syntax:.visitSentence ("Alicio, jam longan tempon sidinte apud sia fratino sur la deklivo,\n
-tre enuiĝis pro senokupo. Unu, du foje ŝi prove rigardis en la\n
-libron kiun la fratino legas, sed povis vidi en ĝi nek desegnojn nek\n
-konversaciojn, kaj \"por kio utilas libro,\" pensis ŝi, \"enhavanta nek\n
-desegnojn nek konversaciojn?\" Ŝi do ekpripensis (ne tre vigle ĉar\n
-la tago estis varma, kaj ŝi sentis sin tre dormema) ĉu la plezuro\n
-fari ĉenon el lekantetoj valorus la laboron sin levi kaj kolekti\n
-lekantetojn, kiam tutapude preterkuris Blanka kuniklo kun paleruĝaj\n
-okuloj."s8));
+        console (alias mia_syntax);
     } catch {
         err : &ArgumentError => {
             println (argParser.simpleUsage (cmd-> "MIA"));

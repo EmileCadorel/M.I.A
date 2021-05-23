@@ -1,0 +1,65 @@
+mod mia::syntax::tree::_;
+import mia::syntax::lexer;
+import std::io, std::stream;
+
+pub import mia::syntax::tree::group;
+pub import mia::syntax::tree::sentence;
+
+pub class @abstract Word {
+
+    let _value : [c32];
+    let _acc : bool;
+    let _plural : bool;
+    
+    prot self (value : [c32], acc : bool, plural : bool) with _value = value, _acc = acc, _plural = plural {}
+
+    pub def @final isAccusative (self)-> bool {
+        self._acc
+    }
+
+    pub def @final getValue (self)-> [c32] {
+        self._value
+    }
+
+    pub def @final isPlural (self)-> bool {
+        self._plural
+    }
+    
+    impl Streamable;    
+}
+
+
+pub class @final Adjective over Word {
+
+
+    pub self (value : [c32], acc : bool, plural : bool)
+        with super (value, acc, plural)
+    {}
+    
+    impl Streamable;
+              
+}
+
+pub class @final Adverb over Word {
+    pub self (value : [c32], acc : bool) with super (value, acc, false) {}
+    
+    impl Streamable;
+}
+
+
+pub class @final Verb over Word {
+    pub self (value : [c32]) with super (value, false, false) {}
+
+    impl Streamable;
+}
+
+
+pub class @final Conjunction over Word {
+    pub self (value : [c32]) with super (value, false, false) {}
+    impl Streamable;
+}
+
+pub class @final Noun over Word {
+    pub self (value : [c32], acc : bool, plural : bool) with super (value, acc, plural) {}
+    impl Streamable;
+}

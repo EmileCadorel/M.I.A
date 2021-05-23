@@ -1,0 +1,155 @@
+mod mia::syntax::tree::group;
+import std::io, std::stream;
+import mia::syntax::tree::_;
+import mia::syntax::lexer;
+
+/**
+ * Basic component of a sentence, 
+ * a word group is the ancestor of all kind of word groups
+ * It can be accusative or not (even if sometimes it has no sense, this is just more convinient)
+ */
+pub class @abstract WordGroup {
+    let _accusative = false;
+
+    pub self (accusative : bool)
+        with _accusative = accusative
+    {}
+
+    /**
+     * @returns: true if the group is in accusative form, false otherwise
+     * @warning: the form is not necessarily accusative, it just means that the group was 'n' finished in the sentence, the location of the group, and the type of the words can change its meaning (for example locative, temporal, movement...)
+     */
+    pub def @final isAccusative (self)-> bool {
+        self._accusative
+    }
+
+    impl Streamable;
+}
+
+/**
+ * A nominal group is a group composed of one noun, and adjectives
+ * The adjectives are separated into two lists, pre adjectives, and post adjectives
+ * @warning: The post adjective can be non accusative, even if the NominalGroup is accusative and vice-versa
+ */
+pub class @final NominalGroup over WordGroup {
+    
+    let _noun : &Token;
+    let _pre : &AdjectiveGroup;
+    let _post : &AdjectiveGroup;
+
+    /**
+     * @params: 
+     *    - word: the noun composing the group
+     *    - pre: the adjectives written before the noun
+     *    - post: the adjectives written after the noun
+     *    - accusative: the noun was in accusative form (finished by a 'n')
+     */
+    pub self (word : &Token, pre : &AdjectiveGroup, post : &AdjectiveGroup, accusative : bool)
+        with super (accusative), _noun = word, _pre = pre, _post = post
+    {}
+
+    /**
+     * @returns: the noun part of the group
+     */
+    pub def getNoun (self)-> &Token {
+        self._noun
+    }
+
+    /**
+     * @returns: the list of adjectives before the noun
+     */
+    pub def getPreAdjectives (self)-> &AdjectiveGroup {
+        self._pre
+    }
+
+    /**
+     * @returns: the list of adjective after the noun
+     */
+    pub def getPostAdjectives (self)-> &AdjectiveGroup {
+        self._post
+    }
+
+    impl Streamable;    
+}
+
+/**
+ * An adjective group is simply a list of adjectives
+ * It can be n-finished
+ */
+pub class @final AdjectiveGroup over WordGroup {
+
+    let _adjs : [&Adjective];
+
+    /**
+     * @params:
+     *    - adjs: the list of adjective composing the group
+     *    - accusative: the adjective is in accusative form
+     */
+    pub self (adjs : [&Adjective], accusative : bool)
+        with super (accusative), _adjs = adjs
+    {}
+
+    /**
+     * @returns: the list of adjectives composing the group
+     */
+    pub def getAdjectives (self)-> [&Adjective] {
+        self._adjs
+    }
+
+    impl Streamable;
+}
+
+/**
+ * A verbal group is a verb associated with adverbs
+ * It can be conjugated or in infinitive form
+ */
+pub class @final VerbalGroup over WordGroup {
+
+    let _verb : &Token;
+    let _adv : (&Adverb)?
+       
+    /**
+     * @params:
+     *   - word: the content of the verb
+     *   - adv: the adverb modifying the verb
+     */
+    pub self (word : &Token, adv : (&Adverb)? = ((&Adverb)?)::__err__)
+        with super (false), _verb = word, _adv = adv
+    {}
+
+    /**
+     * @returns: the verb part of the group
+     */
+    pub def getVerb (self)-> &Token {
+        self._verb
+    }
+
+    /**
+     * @returns: the adverb part of the group
+     */
+    pub def getModifier (self)-> (&Adverb)? {
+        self._adv
+    }
+
+    /**
+     * @returns: true if the group has an adverb, false otherwise
+     */
+    pub def hasModifier (self)-> bool {
+        match self._adv {
+            Ok () => true
+            _     => false
+        }
+    }
+    
+    impl Streamable;
+}
+
+
+
+/**
+ * An empty group
+ */
+pub class @final EmptyGroup over WordGroup {
+    pub self () with super (false) {}
+    impl Streamable;
+}
